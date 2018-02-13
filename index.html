@@ -1,0 +1,66 @@
+<html>
+	<head>
+		<title>ESP8266 LED Control</title>
+	</head>
+	<body>
+
+	<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+
+	<header size=32>ESP8266 - K64F Equipo 1 connexión</header>
+
+	<button id="1" class="led">Light On</button>
+
+	<button id="0" class="led">Light Off</button>
+
+	<button id="R" class="led">LED Red</button>
+
+	<button id="G" class="led">LED Green</button>
+
+	<button id="B" class="led">LED Blue</button>
+
+	<button id="O" class="led">LED Off</button>
+
+	<p id="LightStatus">Light Status will appear here.</p>
+	<p id="LEDStatus">LED Status will appear here.</p>
+
+	<script type="text/javascript">
+		$(document).ready(function(){
+			$(".led").click(function(){
+
+				var status = $(this).attr('id');
+
+				switch (status) {
+					case '1':
+						$.get("http://172.16.101.131/1!");
+						document.getElementById("LightStatus").innerHTML = "Light Status: ON";
+						break;
+					case '0':
+						$.get("http://172.16.101.131/0!");
+						document.getElementById("LightStatus").innerHTML = "Light Status: OFF";
+						break;
+					case 'R':
+						$.get("http://172.16.101.131/R!");
+						document.getElementById("LEDStatus").innerHTML = "LED Status: RED";
+						break;
+					case 'G':
+						$.get("http://172.16.101.131/G!");
+						document.getElementById("LEDStatus").innerHTML = "LED Status: GREEN";
+						break;
+					case 'B':
+						$.get("http://172.16.101.131/B!");
+						document.getElementById("LEDStatus").innerHTML = "LED Status: BLUE";
+						break;
+					case 'O':
+						$.get("http://172.16.101.131/O!");
+						document.getElementById("LEDStatus").innerHTML = "LED Status: OFF";
+						break;
+					default:
+						break;
+
+				}
+
+			});
+		});
+	</script>
+	</body>
+</html>
