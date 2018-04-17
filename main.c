@@ -1,283 +1,548 @@
-/*
- * main implementation: use this 'C' sample to create your own application
- *
- */
 #include "derivative.h" /* include peripheral declarations */
-
-unsigned char* mens_recieve[10] ={
-		"",
-		"ready\r\n",				//1
-		"WIFI GOT IP\r\n",			//2
-		"OK\r\n",					//3
-		"ERROR\r\n",				//4
-		"busy\r\n",					//5
-		"SEND OK\r\n",				//6
-		">"							//7
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------CONSTANTES-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------	
+					//Crea constantes numeradas, empezando desde 0
+enum{				//Numeración para la máquina de estados	
+	WAIT_WIFI,	    
+	WAIT_OK,
+	CONF_MUX,
+	CONF_SERVER,
+	SHOW_IP,
+	WAIT_IP,
+	SHOW_MAC,
+	WAIT_MAC,
+	WAIT_HEADER,
+	WAIT_CHANNEL,
+	WAIT_BYTES,
+	WAIT_SEND,
+	WAIT_SEND_OK,
+	WAIT_CONNECTION,
+	WAIT_REF,
+	SET_REF,
+	WAIT_TIME,
+	SET_TIME,
+	WAIT_ACT,
+	SET_ACT,
+	WAIT_END
 };
-unsigned char* mens_control[10] ={
-		"AT\r\n",					//0
-		"AT+CWMODE=3\r\n",			//1
-		"AT+CWJAP=\"LJ\",\"12345678\"",//2
-		"AT+CIPSTA_DEF=\"192.168.43.70\",\"192.168.43.1\",\"255.255.255.0\"",//3
-		"AT+CIPMUX=1\r\n",			//4
-		"AT+CIPSERVER=1,80\r\n",	//5
-		"AT+CIFSR\r\n",				//6
-		"AT+CIPSEND="				//7
-		
+enum{
+	RED,
+	GREEN,
+	BLUE,
+	WHITE,
+	YELLOW,
+	PINK,
+	CYAN,
+	ON,
+	OFF,
+	RESET,
+	TOOGLE,
+	TX_BUSY,
+	TX_READY,
+	AUTO,
+	MANUAL
 };
-unsigned char* mens_parser[10] = {
-		":GET /",					//0
-		"+IPD,",					//1
-		",",						//2
-		":",						//3
-		".",						//4
-		" "							//5
+enum{				//Numeración para los mensajes
+	READY,		
+	WIFI_GOT_IP,
+	WIFI_DISCONNECT,
+	OK,
+	ERROR,
+	BUSY,
+	SEND_OK,
+	ARROW,			//>
+	AT,
+	AT_CWMODE,
+	AT_CWJAP,
+	AT_CIPSTA_DEF,
+	AT_CIPMUX,
+	AT_CIPSERVER,
+	AT_CIFSR,
+	AT_CIPSEND,
+	AT_CIPCLOSE,
+	AT_CIPSTART,
+	STAIP,
+	STAMAC,
+	GET,
+	IPD,
+	COMA,
+	DOS_PUNTOS,			//":"
+	PUNTO,
+	ESPACIO,
+	COMILLA,
+	SLASH,
+	EXCLAMATION,
+	INICIO_TRAMA,
+	MENSAJE_RECIBIDO,
+	CANAL_RECIBIDO,
+	ENTER,
+	BYTES_RECIBIDOS,
+	LED_ROJO_ON,
+	LED_AZUL_ON,
+	LED_VERDE_ON,
+	LED_BLANCO_ON,
+	LED_AMARILLO_ON,
+	LED_OFF,
+	FOCO_ON,
+	FOCO_OFF,
+	COMANDO_NO_RECONOCIDO,
+	PAGINA_WEB1,
+	PAGINA_WEB2,
+	PAGINA_WEB3,
+	PAGINA_WEB4,
+	QUERY1,
+	QUERY2,
+	QUERY3,
+	QUERY4,
+	QUERY5
 };
-
-unsigned char* mens_console[15] = {
-		"MENSAJE RECIBIDO: ",		//0
-		"CANAL RECIBIDO: ",			//1
-		"\r\n",						//2
-		"BYTES RECIBIDOS: ",		//3
-		"LED ROJO ON\r\n",				//4
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------MENSAJES-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+unsigned char mensaje[60][120] ={
+		"ready\r\n",				
+		"WIFI GOT IP\r\n",
+		"WIFI DISCONNECT\r\n",
+		"OK\r\n",					
+		"ERROR",				
+		"busy\r\n",					
+		"SEND OK\r\n",				
+		">",					
+		"AT\r\n",					
+		"AT+CWMODE=3\r\n",			
+		"AT+CWJAP=\"LJ\",\"12345678\"",
+		"AT+CIPSTA_DEF=\"192.168.43.70\",\"192.168.43.1\",\"255.255.255.0\"",
+		"AT+CIPMUX=1\r\n",			
+		"AT+CIPSERVER=1,80\r\n",	
+		"AT+CIFSR\r\n",				
+		"AT+CIPSEND=",				
+		"AT+CIPCLOSE=0\r\n",
+		"AT+CIPSTART=4,\"TCP\",\"192.168.43.45\",80\r\n",
+		"+CIFSR:STAIP,\"",
+		"+CIFSR:STAMAC,\"",
+		":GET /",					
+		"+IPD,",					
+		",",						
+		":",						
+		".",						
+		" ",
+		"\"",
+		"/!",
+		"!",
+		"?",
+		"MENSAJE RECIBIDO: ",		
+		"CANAL RECIBIDO: ",			
+		"\r\n",						
+		"BYTES RECIBIDOS: ",		
+		"LED ROJO ON\r\n",				
 		"LED AZUL ON\r\n",
 		"LED VERDE ON\r\n",
 		"LED BLANCO ON\r\n",
 		"LED AMARILLO ON\r\n",
 		"LED OFF\r\n",
-		"FOCO ON\r\n",
-		"FOCO OFF\r\n",
-		"COMANDO NO RECONOCIDO\r\n"
+		"ON",
+		"OFF",
+		"COMANDO NO RECONOCIDO\r\n",
+		"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: Close\r\n\r\n<html><head><title>ESP8266</title><body><p>",
+		"</p><p>",
+		"</p><p>",
+		"</p></body></html>",
+		"GET /SemestreI/psrLamp.php?idStatus=default&IP=",
+		"&MAC=",
+		"&stDate=now()&Estado=",
+		"&Voltaje=",
+		" HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
 };
-unsigned char* mens_html[15] = {
-		"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n",
-		"<html><head><title>ESP8266 LED Control</title></head><body><script src=\"https://code.jquery.com/jquery-2.1.4.min.js\"></script><header size=32>ESP8266 - K64F Equipo 1 connexión</header><button id=\"1\" class=\"led\">Light On</button><button id=\"0\" class=\"led\">Light Off</button><button id=\"R\" class=\"led\">LED Red</button><button id=\"G\" class=\"led\">LED Green</button><button id=\"B\" class=\"led\">LED Blue</button><button id=\"O\" class=\"led\">LED Off</button><p id=\"LightStatus\">",
-		"</p><p id=\"LEDStatus\">",
-		"</p><script type=\"text/javascript\">$(document).ready(function(){$(\".led\").click(function(){var status = $(this).attr('id');switch (status) {case '1':$.get(\"http://172.16.101.131/1!\");break;case '0':$.get(\"http://172.16.101.131/0!\");break;case 'R':$.get(\"http://172.16.101.131/R!\");break;case 'G':$.get(\"http://172.16.101.131/G!\");break;case 'B':$.get(\"http://172.16.101.131/B!\");break;case 'O':$.get(\"http://172.16.101.131/O!\");break;default:break;}});});</script></body></html>"
-};
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------VARIABLES GLOBALES-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
 
-unsigned char buffer[40];			//Arreglo donde se guardará información temporal
-unsigned char mensaje[40];				//Mensaje
-unsigned char canal;				//Canal de comunicación
-unsigned char bytes[5];				//Bytes recibidos
-unsigned char x = 0;				//Contador SM
-unsigned char s = 0;
+unsigned char temp;							//Variable donde se guardará temporalmente el dato recibido por la UART
+unsigned char mensaje_enviado[800];			//Arreglo donde se pondrá la información que será enviada
+unsigned char buffer[200];					//Arreglo donde se guardará información temporal
+unsigned char canal_recibido[2];			//Arreglo para el canal 
+unsigned char bytes_recibidos[4];			//Arreglo para los bytes
+unsigned char informacion_recibida[40];	    //Arreglo donde se guardará
+unsigned char* pointer_UART0;
+unsigned char* pointer_UART1;
+unsigned char count_parser, count_parser2;	//Variable para llevar la cuenta de la comparación del parser
+unsigned int count_msg;						//Variable para llevar la cuenta para almacenar los datos recibidos
+unsigned int byte_size;						//Variable 
+unsigned char tx_status;					//Variable que indica si se está mandando datos 
+unsigned char actualState;					//Variable para aumentar la máquina de estados
+unsigned int medicion, medicion2;			//Variables donde se guarda la medición de los sensores
+unsigned char voltaje[6];					//Arreglo auxiliar para convertir la medición de entero a String
+unsigned char lamp_status;					//Estado de la lámpara, ON, OFF o ERROR
+unsigned char last_status = OFF;
+unsigned char ip[20];
+unsigned char mac[20];
+unsigned char enable_transmit;
+unsigned int time_count = 0;
+unsigned char enable_time_out = 0;
+unsigned int error_count = 0;
+unsigned int time_out_count = 0;
+unsigned int activation_method = AUTO;
 
+
+unsigned int sensor1_ref = 40000;			//Referencia a la que se activará la lámpara 
+unsigned int sensor2_ref = 20000;			//Referencia para saber si la lámpara está encendida 
+unsigned int act_time = 10000;				//Variable de tiempo que indica cada cuánto se mandará un dato a la BD (ms)
+unsigned int sense_time = 500;				//Variable de tiempo que indica cada cuánto se tomará una medición del sensor (ms)		
+unsigned int error_time = 5000;				//Variable de tiempo que indica cada cuánto se mandará un reporte de error a la BS (ms)
+unsigned int time_out = 1000;
+
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------DECLARACIÓN DE FUNCIONES-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
 
 void vUART_init(void);
-void delay(void);
-void setLEDColor(unsigned char a);
-void setLamp(unsigned char a);
+void copy_AtoB(unsigned char *arrayA, unsigned char *arrayB);
+unsigned char* integer_to_array(unsigned int dato,unsigned char *array);
+unsigned int array_to_integer(unsigned char *array);
+void clear_array(unsigned char *array);
+unsigned int count_array(unsigned char *array);
+void setLamp(unsigned char estado);
+void setLEDColor(unsigned char color);
+void setESP8266(unsigned char estado);
+void UART1_send(unsigned char* msg);
+void UART1_send_msg(unsigned char msg_ID);
+void UART1_send_msg_address(unsigned char* msg_address);
+unsigned char UART1_parser(unsigned char msg_ID);
+unsigned char UART1_parser2(unsigned char msg_ID);
+void join_String(unsigned char * String1, unsigned char * String2);
+unsigned char* format(unsigned char msg_ID, unsigned char* buff );
+unsigned int convertVoltage(unsigned int med);
 void vUART_send_Console(unsigned char dato);
 void vUART_send_msg_Console (unsigned char *a);
-void vUART_send_ESP8266(unsigned char dato);
-void vUART_send_msg_ESP8266 (unsigned char *a);
-void vUART_send_msg_INTERNET (unsigned char c,unsigned char *a);
-unsigned char u8parser1(unsigned char *a);
-void vUART_recieve_buffer2(unsigned char *byte);
-void vUART_recieve_buffer (unsigned char *a);
-void vUART_clear_array(unsigned char *a);
-unsigned int u16Contador_buffer(unsigned char *a);
-unsigned char* itoa(unsigned int dato,unsigned char *buff);
-void copy_buffer(unsigned char *a);
-unsigned char* respuesta(unsigned char a);
-/*
-typedef enum 
-{
-	WAIT_READY,
-	BLUE,
-	YELLOW
-}States;
-//STATES X
-states current_state;
-current_state = WAIT_READY;
-*/
-/*
-switch() 
-*/
+
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------MAIN-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+
 int main(void)
 {
-    vUART_init();
-    GPIOC_PDOR = 0x00000000; //Estado inicial, Módulo y Relevador apagado
-    setLEDColor('R');
-    delay();
-    setLEDColor('W');
-    delay();
-    setLEDColor('B');
-    delay();
-    setLEDColor('W');
-    delay();
-    setLEDColor('R');
-    delay();
-    GPIOC_PDOR |= 1 << 5; //Enceder solamente el pin 5 del puerto C (Activar Módulo)
-    while (1)
-    {
-       
-    	switch(x){
-    	case 0://WAIT READY
-    		if(u8parser1(mens_recieve[1])==1){			//Buscar un ready
-    		    setLEDColor('B');
-    		    x++;
-    		}else setLEDColor('R');
-    		break;
-    	case 1:
-    		if(u8parser1(mens_recieve[2])==1){			//Esperar a que reciba una IP
-    			setLEDColor('B');
-    			x++;
-    		}else setLEDColor('R');
-    		break;
-    	case 2:
-    		vUART_send_msg_ESP8266(mens_control[0]);		//Mandar un AT y esperar un OK
-    		if(u8parser1(mens_recieve[3])==1){
-    			setLEDColor('B');
-    			x++;
-    		}else setLEDColor('B');
-    		break;
-    	case 3:
-     	   vUART_send_msg_ESP8266(mens_control[4]);		//Configurar MUX=1 y esperar un OK
-     	   if(u8parser1(mens_recieve[3])==1){
-     		   setLEDColor('B');
-     		   x++;
-     	   }else setLEDColor('R');
-     	   break;
-    	case 4:
-     	   vUART_send_msg_ESP8266(mens_control[5]);		//Configurar como servidor en el puerto 80 y esperar un OK
-     	   if(u8parser1(mens_recieve[3])==1){
-     		   setLEDColor('B');
-     		   x++;
-     	   }else setLEDColor('R');
-     	   break;
-    	case 5:									//Mostrar IP actual y esperar un OK
-     	   vUART_send_msg_ESP8266(mens_control[6]);
-     	   if(u8parser1(mens_recieve[3])==1){
-     		   setLEDColor('B');
-     		   x++;
-     		   setLEDColor('l');
-     	   }else setLEDColor('R');
-     	   break;
-    	case 6:											//	+IPD,0,5:HELLO			
-    		if(u8parser1(mens_parser[1])==1){			//Esperar a inicio del mensaje "+IPD,"
-    			vUART_recieve_buffer(mens_parser[2]);	//Parsear el mensaje hasta encontrar una ","
-    		    canal=buffer[0];						//Poner el valor (0-4) en canal
-    		    vUART_recieve_buffer(mens_parser[3]);	//Parsear hasta encontrar un ":"
-    		    copy_buffer(bytes);						//Convertir array a integer
-    		    //vUART_recieve_buffer(mens_parser[4]);	//Parsear el mensaje hasta encontrar un "."    
-    		    vUART_recieve_buffer2(bytes);
-    		    copy_buffer(mensaje);
-    		    
-    		    setLEDColor(buffer[0]);
-    		    setLamp(buffer[0]);
-		        
-    		    vUART_send_msg_Console(mens_console[2]);//Espacio
-		        vUART_send_msg_Console(mens_console[2]);//Espacio
-		        vUART_send_msg_Console(mens_console[1]);//"Canal recibido"
-		        vUART_send_Console(canal);
-		        vUART_send_msg_Console(mens_console[2]);//Espacio
-		        vUART_send_msg_Console(mens_console[3]);//"Bytes recibidos"
-		        vUART_send_msg_Console(bytes);
-		        vUART_send_msg_Console(mens_console[2]);//Espacio
-		        vUART_send_msg_Console(mens_console[0]);//"Mensaje recibido"
-		        vUART_send_msg_Console(mensaje);
-		        vUART_send_msg_Console(mens_console[2]);//Espacio
-		        
+	vUART_init();				//Inicializar entradas y salidas
+	setESP8266(OFF);	
+	setLamp(OFF);
+	setLEDColor(RED);			//Iniciar con todas las salidas apagadas
+	setESP8266(ON);			//Resetear el módulo Wifi
+	tx_status = TX_READY;
+	actualState = WAIT_WIFI;		//Inicio de la máquina de estados
+	enable_transmit = 0;
+	count_parser = 0;
+	count_parser2 = 0;
+	count_msg = 0;
 
-		        vUART_send_msg_INTERNET(canal, respuesta(mensaje[0]));//MANDAR MENSAJE STATUS
-    		    //vUART_send_msg_INTERNET(canal, mens_html[1]);//MANDAR HEADER HTTP
-    		    //vUART_send_msg_INTERNET(canal, respuesta(mensaje[0]));//MANDAR MENSAJE STATUS
-    		    //vUART_send_msg_INTERNET(canal, mens_html[2]);//MANDAR HTML
-    		    //vUART_send_msg_INTERNET(canal, respuesta(mensaje[0]));//MANDAR MENSAJE STATUS
-    		    //vUART_send_msg_INTERNET(canal, mens_html[3]);//MANDAR FINAL HTML
-    		    //delay();
-    		    vUART_clear_array(buffer);
-    		    
-    		    
-    		    //x++;
-    		}
-    		break;
-    	case 7:
-    		break;
-    	default:
-    		setLEDColor('Y');
-    		break;
-    	}	
-     }//while (1)
-    return 0;
-
-} //main
-
-void vUART_init(void)
-
-{
-//UART init   
-    SIM_SCGC4=0x00000C00; //Hab clk UART0 y UART1
-    UART0_BDH=0;
-    UART0_BDL=11;
-    UART1_BDH=0;
-    UART1_BDL=11;
-    //UART0_C1=0;
-    UART0_C2=12; // bit 3: Hab Tx, bit 2: Hab Rx
-    UART1_C2=12;
-   
-//Pin/terminal init
-    SIM_SCGC5=0x00002C00; //Hab clk PORTB (PB16 y 17 son Rx y Tx) y PORTC
-    PORTB_PCR16=0x00000300; //Hab clk PB16 Rx
-    PORTB_PCR17=0x00000300; //Hab clk PB17 Tx
-    PORTC_PCR3=0x00000300; //Hab clk PC3 Rx
-    PORTC_PCR4=0x00000300; //Hab clk PC4 Tx
-    
-    PORTB_PCR21 = 0x00000100;	//Seleccionar pin como GPIO 
-    PORTB_PCR22 = 0x00000100;
-    PORTC_PCR2 =  0x00000100;
-    PORTC_PCR5 = 0x00000100;
-    PORTE_PCR26 = 0x00000100;
-    GPIOB_PDDR = 0x00600000;//Dirección del pin (ouput)
-    GPIOE_PDDR = 0x04000000;
-    GPIOC_PDDR = 0x00000024;
+	while(1){
+								
+		//Loop infinito
+		
+	}
+	return 0;
 }
-void delay(void){
-	unsigned long i;
-	for(i=0;i<=1000000;i++);	
+
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------ISR´s-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+
+void UART0_Status_IRQHandler(){
+	if(UART0_S1&(1<<7)){				//Revisar si se puede escribir en la UART0
+		UART0_D=*(pointer_UART0++);
+		if(*pointer_UART0==0){
+				tx_status = TX_READY; //Indica que ya terminó de mandar el mensaje
+				UART0_C2&=~(1<<7);	  //Deshabilitar interrupción
+			}
+	}
 }
-void setLEDColor(unsigned char a){
-	switch(a){
-	case 'R':
-		GPIOB_PDOR = 0x00200000;
-		GPIOE_PDOR = 0x04000000;
-		break;
-	case 'B':
-		GPIOB_PDOR = 0x00400000;
-		GPIOE_PDOR = 0x04000000;
-		break;
-	case 'G':
-		GPIOB_PDOR = 0x00600000;
-		GPIOE_PDOR = 0x00000000;
-		break;
-	case 'W':
-		GPIOB_PDOR = 0x00000000;
-		GPIOE_PDOR = 0x00000000;
-		break;
-	case 'Y':
-		GPIOB_PDOR = 0x00200000;
-		GPIOE_PDOR = 0x00000000;
+void UART1_Status_IRQHandler(){
+	if(tx_status == TX_BUSY){			//Solamente puede entrar a esta función si se mandó algo 
+	if(UART1_S1&(1<<7)){				//Revisar si se puede escribir en la UART1
+		UART1_D=*(pointer_UART1++);
+		//UART0_D=*(pointer_UART1++);
+		if(*pointer_UART1==0){
+				tx_status = TX_READY;	//Indica que ya terminó de mandar el mensaje
+				UART1_C2&=~(1<<7);		//Deshabilitar interrupción
+			}
+	}
+	}
+	if(UART1_S1&(1<<5)){
+		do{}while(tx_status == TX_BUSY);		//Esperar por si todavía se está mandando algo
+		
+		temp = UART1_D;					//Guardar medoralmente el dato
+		
+		switch(actualState){
+		
+		case WAIT_WIFI:
+			if(UART1_parser(WIFI_GOT_IP) == 1){		//Esperar a "ready" y mandar un "AT"
+				actualState = WAIT_OK;
+				UART1_send_msg(AT);
+			}
 			break;
-	case 'O':
-		GPIOB_PDOR = 0x00600000;
-		GPIOE_PDOR = 0x04000000;
-		break;
+		case WAIT_OK:
+			if(UART1_parser(OK) == 1){			//Esperar un "OK" y mandar "AT+CIPMUX=..."
+				actualState = CONF_MUX;
+				UART1_send_msg(AT_CIPMUX);
+			}
+			break;
+		case CONF_MUX:		
+			if(UART1_parser(OK) == 1){			//Esperar un "OK" y mandar un "AT+CIPSERVER=..."
+				actualState = CONF_SERVER;
+				UART1_send_msg(AT_CIPSERVER);
+			}
+			break;
+		case CONF_SERVER:						//Esperar un "OK"
+			if(UART1_parser(OK) == 1){
+				actualState = SHOW_IP; //SHOW_IP;
+				UART1_send_msg(AT_CIFSR);
+			}
+			break;
+		case SHOW_IP:						//Esperar un "STAIP"
+			if(UART1_parser(STAIP) == 1){
+				actualState = WAIT_IP;	
+			}
+			break;
+		case WAIT_IP:						//Almacena el canal recibido (máximo 2 caracteres) hasta que encuentra una coma
+			if(UART1_parser(COMILLA) == 1){
+				canal_recibido[count_msg] = 0;
+				count_msg = 0;
+				actualState = SHOW_MAC;
+			}
+			else ip[count_msg++] = temp;
+			break;
+		case SHOW_MAC:						//Esperar un "STAIP"
+			if(UART1_parser(STAMAC) == 1){
+				actualState = WAIT_MAC;	
+			}
+			break;
+		case WAIT_MAC:						//Almacena el canal recibido (máximo 2 caracteres) hasta que encuentra una coma
+			if(UART1_parser(COMILLA) == 1){
+				canal_recibido[count_msg] = 0;
+				count_msg = 0;
+				enable_transmit=1;
+				setLEDColor(OFF);
+				actualState = WAIT_HEADER;
+			}
+			else mac[count_msg++] = temp;
+			break;
+			
+		case WAIT_HEADER:						//Esperar un "+IPD,"
+					if(UART1_parser(IPD) == 1){
+						actualState = WAIT_CHANNEL;
+						count_msg = 0;
+					}
+					break;
+		case WAIT_CHANNEL:						//Almacena el canal recibido (máximo 2 caracteres) hasta que encuentra una coma
+					if(UART1_parser(COMA) == 1){
+						canal_recibido[count_msg] = 0;
+						count_msg = 0;
+						actualState = WAIT_BYTES;
+					}
+					else canal_recibido[count_msg++] = temp;
+					break;
+		case WAIT_BYTES:											//Almacena los bytes recibidos (máximo 4 caracteres) hasta que encuentra dos puntos
+					if(UART1_parser(DOS_PUNTOS) == 1){
+						canal_recibido[count_msg] = 0;
+						byte_size = array_to_integer(&bytes_recibidos[0]); //Convierte el arreglo de bytes_recibidos a entero
+						count_msg = 0;
+						if(enable_transmit) actualState = WAIT_ACT;
+						else actualState = WAIT_REF;
+					}
+					else bytes_recibidos[count_msg++] = temp;
+					break;
+		case WAIT_ACT:						//Esperar un "+IPD,"
+			byte_size--;
+			enable_time_out = 2;
+			if(UART1_parser(SLASH) == 1){
+											//Desactiva la transmisión de datos mientras está recibiendo algo
+				actualState = SET_ACT;
+				clear_array(buffer);
+			}
+			break;
+		case SET_ACT:						//Almacena el canal recibido (máximo 2 caracteres) hasta que encuentra una coma
+			byte_size--;
+			if(UART1_parser(EXCLAMATION) == 1){
+				count_msg = 0;
+				
+				if(buffer[0] != '2'){
+					activation_method = MANUAL;
+					if(buffer[0] == '0') {
+						setLamp(OFF);
+						lamp_status = FOCO_OFF;
+					}
+					if(buffer[0] == '1'){
+						setLamp(ON);
+						lamp_status = FOCO_ON;
+					}
+				}
+				else activation_method = AUTO;
+				
+				actualState = WAIT_END;
+			}
+			else buffer[count_msg++] = temp;
+			break;
+		case WAIT_END:						//Esperar un "+IPD,"
+			byte_size--;
+			if(byte_size == 0){
+				copy_AtoB(format(PAGINA_WEB1,buffer), mensaje_enviado);
+				vUART_send_msg_Console(mensaje_enviado);
+				UART1_send_msg_address(format(AT_CIPSEND, buffer));
+				actualState = WAIT_SEND;
+			}
+			break;
+		case WAIT_REF:						//Esperar un "+IPD,"
+			if(UART1_parser(INICIO_TRAMA) == 1){
+				//enable_transmit=0;			//Desactiva la transmisión de datos mientras está recibiendo algo
+				actualState = SET_REF;
+				clear_array(buffer);
+			}
+			break;
+		case SET_REF:						//Almacena el canal recibido (máximo 2 caracteres) hasta que encuentra una coma
+			if(UART1_parser(PUNTO) == 1){
+				count_msg = 0;
+				sensor1_ref = array_to_integer(buffer);
+				actualState = WAIT_TIME;
+			}
+			else buffer[count_msg++] = temp;
+			break;
+		case WAIT_TIME:						//Esperar a poder recibir el tiempo de activación
+			if(UART1_parser(INICIO_TRAMA) == 1){
+				actualState = SET_TIME;
+				clear_array(buffer);
+			}
+			break;
+		case SET_TIME:						//Almacena el tiempo de activación y actualiza su valor
+			if(UART1_parser(PUNTO) == 1){
+				count_msg = 0;
+				
+				act_time = array_to_integer(buffer);
+				vUART_send_msg_Console(mensaje[ENTER]);	//Muestra un OK en la consola
+				vUART_send_msg_Console(mensaje[OK]);
+				actualState = WAIT_HEADER;
+				
+			}
+			else buffer[count_msg++] = temp;
+			break;
+		
+		case WAIT_CONNECTION:
+			
+			if(UART1_parser(OK) == 1){
+				count_msg = 0;
+				actualState = WAIT_SEND;
+				clear_array(canal_recibido);
+				canal_recibido[0]='4';
+				copy_AtoB(format(QUERY1,buffer), mensaje_enviado);
+				vUART_send_msg_Console(mensaje_enviado);
+				UART1_send_msg_address(format(AT_CIPSEND, buffer));
+				
+			}
+
+			break;
+		case WAIT_SEND:						//Esperar un ">" para mandar un mensaje
+			if(UART1_parser(ARROW) == 1){
+				UART1_send(mensaje_enviado);	//Mandar el mensaje
+				actualState = WAIT_SEND_OK;
+			}
+			break;
+		case WAIT_SEND_OK:						//Esperar un "SEND OK" para terminar la comunicacion
+			if(UART1_parser(SEND_OK) == 1){
+				enable_time_out = 0; 
+				setLEDColor(OFF);				//Resetea todas las variables usadas
+				actualState = WAIT_HEADER;
+				clear_array(canal_recibido);
+				clear_array(bytes_recibidos);
+				clear_array(informacion_recibida);
+				if(enable_transmit){
+					//UART1_send_msg(AT_CIPCLOSE);
+					//UART1_send_msg_address(format(AT_CIPCLOSE, buffer));
+					vUART_send_msg_Console(mensaje[ENTER]);	//Muestra un OK en la consola
+					vUART_send_msg_Console(mensaje[LED_OFF]);
+				}
+				enable_transmit = 1;
+			}
+			break;
+		default:
+			break;		
+		}
+		if(UART1_parser2(WIFI_DISCONNECT) == 1){		//Si se desconecta el WIFI deja de transmitir datos y espera una nueva conexión
+			count_msg = 0;
+			enable_transmit = 0;
+			setLEDColor(RED);
+			actualState = WAIT_WIFI;
+		}
+		UART0_D = temp;					//Enviar el dato a la consola		
 	}
-	// 31 30 29 28 || 27 26 25 24 || 23 22 21 20 || 19 18 17 16 || 15 14 13 12 || 11 10 09 08 || 07 06 05 04 || 03 02 01 00
-	//Led Red --- PTB22
-	//Led Blue -- PTB21
-	//Led Green - PTE26
 }
-void setLamp(unsigned char a){
-	if(a == '1' || a == 1){
-		GPIOC_PDOR |= 1 << 2;	//Apagar relay (Encender bit 2)
-	}
-	if(a == '0' || a == 0){
-		GPIOC_PDOR &= ~(1 << 2); //Encender relay (Apagar bit 2)
-	}
+void LPTimer_IRQHandler(void){
+	LPTMR0_CSR|=(1<<7);					//Apagar bandera del TIMER
+	ADC1_SC1A=(1<<6)+18;				//Activar conversión del canal 18 y activar interrupción
+			
 }
+
+void ADC1_IRQHandler(void){
+	ADC1_SC1A=(1<<7)+0x1F;	//Turn off COCO	and stop conversion
+	medicion = ADC1_RA;			//RA is the data output
+	
+	if(activation_method == AUTO){
+		if(medicion > sensor1_ref) {
+			setLamp(OFF);
+			lamp_status = FOCO_OFF;
+		}
+		else{
+			setLamp(ON);
+			lamp_status = FOCO_ON;
+		}
+	}
+		
+	ADC0_SC1A=(1<<6)+19; //pag 121 el pin está conectado a ADC0_DM0
+}
+
+
+void ADC0_IRQHandler(void){
+	ADC0_SC1A=(1<<7)+0x1F;			//Turn off COCO	and stop conversion
+	medicion2 = ADC0_RA;			//RA is the data output
+	time_count += sense_time;		//
+	
+	if(enable_time_out != 0) time_out_count += sense_time;
+	else time_out_count = 0;
+	
+	if(time_out_count >= time_out){
+		/*if(enable_time_out == 2){
+			copy_AtoB(format(PAGINA_WEB1,buffer), mensaje_enviado);
+			vUART_send_msg_Console(mensaje_enviado);
+			UART1_send_msg_address(format(AT_CIPSEND, buffer));
+			actualState = WAIT_SEND;
+		}
+		else{*/
+			enable_time_out = 0;
+			actualState = WAIT_HEADER;
+			setLEDColor(OFF);
+		//}
+	}
+	
+	if(medicion2 > sensor2_ref && lamp_status == FOCO_OFF) lamp_status = ERROR;
+	if(medicion2 < sensor2_ref && lamp_status == FOCO_ON) lamp_status = ERROR;
+	
+	if(lamp_status == ERROR) error_count += sense_time;
+	else error_count = 0;
+	
+	if(enable_transmit){ 
+		if (time_count >= act_time || error_count >= error_time){
+			enable_time_out = 1;
+			setLEDColor(GREEN);
+			time_count = 0;
+			UART1_send_msg(AT_CIPSTART);
+			actualState = WAIT_CONNECTION;
+			enable_transmit = 0;
+			
+			if(error_count >= error_time)error_count = 0;
+		}
+	}	
+}
+
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------FUNCIONES PRINCIPALES-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
 
 void vUART_send_Console(unsigned char dato){
 	do{}while(!(UART0_S1& 0x80));
@@ -290,207 +555,299 @@ void vUART_send_msg_Console (unsigned char *a){
 		//i++;
 	}while(a[i] != 0);
 }
-void vUART_send_ESP8266(unsigned char dato){
-	do{}while(!(UART1_S1& 0x80));
-	UART1_D=dato; //mandar 'A'
-	do{}while(!(UART0_S1& 0x80));
-	UART0_D=dato; //mandar 'A'
+void UART1_send_msg(unsigned char msg_ID){			//Manda solamente mensajes previamente guardados en el arreglo de Mensajes
+	//pointer_UART0=&mensaje[msg_ID][0];
+	do{}while(tx_status == TX_BUSY);
+	tx_status = TX_BUSY;
+	pointer_UART1=&mensaje[msg_ID][0];				//Copia la dirección del arreglo al puntero global
+	UART1_C2|=1<<7;
+	//UART0_C2|=1<<7; 								//Enable interruption for UART1_Tx
 }
-void vUART_send_msg_ESP8266 (unsigned char *a){
-	unsigned char i = 0;
-	do{
-		vUART_send_ESP8266(a[i++]); 
-		//i++;
-	}while(a[i] != 0);
+void UART1_send_msg_address(unsigned char* msg_address){
+	//pointer_UART0=&mensaje[msg_ID][0];
+	do{}while(tx_status == TX_BUSY);
+	tx_status = TX_BUSY;
+	pointer_UART1=msg_address;				//Copia la dirección del arreglo al puntero global
+	UART1_C2|=1<<7;
+	//UART0_C2|=1<<7; 								//Enable interruption for UART1_Tx
 }
-unsigned char u8parser1(unsigned char *a)	//
 
-{
+void UART1_send(unsigned char* msg){							//
 	unsigned char i = 0;
-	unsigned long cont=0;
 	do{
-		if (UART1_S1&0x20)
-		   {
-		     do{}while (!(UART0_S1&0x80));
-		     UART0_D=UART1_D;
-		     if(UART1_D == a[i])i++;
-		     else i = 0;
-		   }
-		
-	}while((a[i]!=0) && (++cont<=100000));
-	if((++cont<=100000))return 1;
-	else return 0;
+		do{}while(!(UART1_S1& 0x80));
+		UART1_D=msg[i]; //mandar 'A'
+		i++;
+	}while(msg[i] != 0);
 }
-void vUART_recieve_buffer2(unsigned char *byte){//Recibe los datos del UART y los guarda en el buffer, contemplando los bytes del mensaje
-	unsigned char i= 0;
+
+unsigned char UART1_parser(unsigned char msg_ID){
+	if(temp == mensaje[msg_ID][count_parser]) count_parser++; //Si el nuevo dato es igual a la letra siguiente, aumenta la variable global
+	else count_parser = 0;											//Si no, vuelve a iniciar
+
+	if(mensaje[msg_ID][count_parser] == 0){
+		count_parser = 0;
+		return 1;													//Regresa un 1 si encontró la palabra
+	}
+	else return 0;													//Si no, regresa un 0
+}
+
+unsigned char UART1_parser2(unsigned char msg_ID){
+	if(temp == mensaje[msg_ID][count_parser2]) count_parser2++; //Si el nuevo dato es igual a la letra siguiente, aumenta la variable global
+	else count_parser2 = 0;											//Si no, vuelve a iniciar
+
+	if(mensaje[msg_ID][count_parser2] == 0){
+		count_parser2 = 0;
+		return 1;													//Regresa un 1 si encontró la palabra
+	}
+	else return 0;													//Si no, regresa un 0
+}
+
+
+//-----------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------FUNCIONES SECUNDARIAS-----------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+
+void vUART_init(void)
+{
+	//Configurar UART  
+    SIM_SCGC4=0x00000C00; //Hab clk UART0 y UART1
+    UART0_BDH=0;
+    UART0_BDL=11;
+    UART1_BDH=0;
+    UART1_BDL=11;
+    //UART0_C1=0;
+    UART0_C2=12;           // bit 3: Hab Tx, bit 2: Hab Rx, Habilitar interrupción del Reciever
+    UART1_C2=12 + (1<<5); // bit 3: Hab Tx, bit 2: Hab Rx, Habilitar interrupción del Reciever
+    
+    NVICICER0=(1<<(31%32));		//Configurar NVIC para UART0
+    NVICISER0|=(1<<(31%32));
+    
+    NVICICER1=(1<<(33%32));		//Configurar NVIC para UART1
+    NVICISER1|=(1<<(33%32));
+    
+    //Configurar pines
+    SIM_SCGC5=0x00002C00 + 1; //Hab clk PORTB (PB16 y 17 son Rx y Tx) y PORTC
+    PORTB_PCR16=0x00000300; //Hab clk PB16 Rx
+    PORTB_PCR17=0x00000300; //Hab clk PB17 Tx
+    PORTC_PCR3=0x00000300; //Hab clk PC3 Rx
+    PORTC_PCR4=0x00000300; //Hab clk PC4 Tx
+ 
+    								//Seleccionar pin como GPIO 
+    PORTB_PCR21 = 0x00000100;		//Led Rojo	
+    PORTB_PCR22 = 0x00000100;		//Led Azul
+    PORTE_PCR26 = 0x00000100;		//Led Verde
+    
+    PORTC_PCR2 =  0x00000100;		//Relay
+    PORTC_PCR5 = 0x00000100;		//Enable ESP8266
+    PORTC_PCR7 = 0x00000100;		//Led
+    
+    
+    GPIOB_PDDR = 0x00600000;//Dirección del pin (ouput)
+    GPIOE_PDDR = 0x04000000;
+    GPIOC_PDDR = 0x000000A4;
+    
+    //Configurar LPTMR
+    LPTMR0_PSR = 0x05; //Configurar LPTMR
+    LPTMR0_CMR = sense_time;
+    LPTMR0_CSR = (1<<6) + 1;; //Habilitar LPTMR e Interrupción
+	NVICICER1=(1<<(58%32));		//Configure NVIC for LPTMR0
+	NVICISER1|=(1<<(58%32));	//Enable NVIC
+	
+	
+	//Configurar ADC1
+	SIM_SCGC3|= 1<<27;			//clock ADC1
+	ADC1_CFG1=0x0C;				//Conversión de 16 bits
+	NVICICER2=(1<<(73%32));		//Configure NVIC for ADC1
+	NVICISER2|=(1<<(73%32));	//Enable NVIC
+	
+	//Configurar ADC0
+	SIM_SCGC6|= 1<<27;			//clock ADC1
+	ADC0_CFG1=0x0C;				//Conversión de 16 bits
+	NVICICER1=(1<<(39%32));		//Configure NVIC for ADC1
+	NVICISER1|=(1<<(39%32));	//Enable NVIC
+	
+	
+}
+void copy_AtoB(unsigned char *arrayA, unsigned char *arrayB){		//Copia la información del arreglo A al arreglo B
+	clear_array(arrayB);
+	int i = 0;
+	do{
+		arrayB[i]=arrayA[i];
+	}while(arrayA[++i] != 0);
+}
+unsigned char* integer_to_array(unsigned int dato,unsigned char *array){ //Convierte de decimal a un arreglo
+	clear_array(array);
+	unsigned char  digit;
+    unsigned char i = 0;
+        if (dato == 0)					//Si el dato es 0, pone automaticamente 0
+        {
+            array[i++] = '0';
+            array[i] = 0;
+            return array;
+        }
+        if(dato / 10 == 0){				//Si el dato es menor a 9, pone automaticamente el dígito
+            array[i++] = dato + '0';
+            array[i] = 0;
+            return array;
+        }
+        do{
+            digit = dato % 10; 			//Multiplica el valor anterior por 10
+            dato /= 10;			
+            //Divide el dato entre 10 
+            array[i++] = digit + '0';	//Suma el valor actual más el valor anterior
+            }while(dato != 0);
+        array[i] = 0;
+        unsigned char inicio, fin, c;
+        fin = i-1;
+        inicio = 0;
+        do{								//Invierte el orden del arreglo
+            c = array[inicio];
+            array[inicio] = array[fin];
+            array[fin] = c;
+        }while(++inicio < --fin);
+        return array;
+    }
+unsigned int convertVoltage(unsigned int med){
+	unsigned int dato = (med * 3300)/65500;
+	return dato;	
+}
+unsigned int array_to_integer(unsigned char *array){
+	
 	unsigned int val = 0;
-	unsigned long cont = 0;
-	//i = u16array_to_char(byte);
-	do{											//Convierte el arreglo de caracteres a decimal
-			val *= 10;
-		    val += byte[i] - '0';
-		}while(byte[++i] != 0);
-
-	unsigned char n=0;
-	if(val > 100){								//Checa el tamaño de la trama, si es mayor de 100 significa que se mandó por HTTP
-		unsigned char trash;					//Variable donde se pondrán los caracteres de GET /
-		do{
-			if (UART1_S1&0x20){
-				trash = UART1_D;				//Coloca el dato recibido en trash para poder borrar la bandera
-				do{}while(!(UART1_S1&0x20)); 	//Espera a que mande un nuevo dato
-			}
-		}while(trash != '/');					//"/" Significa que inició el mensaje
-		do{			
-				buffer[n] = UART1_D;			//Coloca el dato recibido en el buffer
-				do{}while(!(UART1_S1&0x20));	//Espera a que mande un nuevo dato	
-		}while(buffer[n++] != '!');				//"!" Significa que terminó el mensaje
-		buffer[n-1] = 0;
-	}
-	else{										//Si la trama es menor a 100 significa que lo mandó por Putty
-		val +=1;
-		do{
-			if (UART1_S1&0x20)
-			{
-				buffer[n] = UART1_D;
-				n++;
-			}
-		do{}while(!(UART1_S1&0x20));			//Espera a que mande un nuevo dato
-	}while(--val != 0);							//Disminuye la variable de bytes hasta llegar a 0
-	buffer[n] = 0;	
-	}
-	
-}
-void vUART_recieve_buffer (unsigned char *a)
-{
-	unsigned char i=0;
-	unsigned char n=0;
-	unsigned long cont=0;
-	do{
-		if (UART1_S1&0x20)
-			{
-			if(UART1_D == a[n])n++;
-			else {
-				n=0;
-				buffer[i++] = UART1_D;
-			}
-			
-			}
-	}while(a[n]!=0 && (++cont<=100000));
-	buffer[i] = 0;
-	}
-void vUART_clear_array(unsigned char *a){							//Limpia el arreglo recibido
-	unsigned char i=0;
-	do{
-		a[i] = 0;
-	}while(a[++i] != 0);
-}
-unsigned int u16Contador_buffer(unsigned char *a){					//Recibe un Arreglo de caracteres y cuenta la cantidad de datos
-	
-	unsigned int i = 0;
-	do{}while(a[++i] != 0);
-	return i;
-	
-}
-void vUART_send_msg_INTERNET (unsigned char c,unsigned char *a){
-	vUART_send_msg_ESP8266(mens_control[7]); 						//"AT+CIPSEND="
-	vUART_send_ESP8266(c);											//Canal
-	vUART_send_msg_ESP8266(mens_parser[2]);							//,
-	vUART_send_msg_ESP8266(itoa(u16Contador_buffer(a), buffer));	//Contar los caracteres que tiene el array, luego convertir de entero a array para poder mandar
-	vUART_send_msg_ESP8266(mens_console[2]);						//Espacio
-	if(u8parser1(mens_recieve[7])==1){								//Esperar a >
-	    vUART_send_msg_ESP8266(a);									//mandar el menjake
-	    }
-	   	do{
-	   		vUART_send_ESP8266(' ');
-	    }while(u8parser1(mens_recieve[6])!=1);						//Esperar a "SEND OK"
-}
-unsigned char u16array_to_char(unsigned char *a){
-	
-	unsigned char val = 0;
 	unsigned char i = 0;
 	
 	do{
 		val *= 10;
-	    val += a[i] - '0';
-	}while(a[++i] != 0);
+	    val += array[i] - '0';
+	}while(array[++i] != 0);
 	return val;
 }
-unsigned char* itoa(unsigned int dato,unsigned char *buff){
-	unsigned char  digit;
-        unsigned char i = 0;
-        if (dato == 0)
-        {
-            buff[i++] = '0';
-            buff[i] = 0;
-            return buff;
-        }
-        if(dato / 10 == 0){
-            buff[i++] = dato + '0';
-            buff[i] = 0;
-            return buff;
-        }
-        do{
-            digit = dato % 10;
-            dato /= 10;
-            buff[i++] = digit + '0';
-            }while(dato != 0);
-        buff[i] = 0;
-        unsigned char inicio, fin, c;
-        fin = i-1;
-        inicio = 0;
-        do{
-            c = buff[inicio];
-            buff[inicio] = buff[fin];
-            buff[fin] = c;
-        }while(++inicio < --fin);
-        return buff;
-        
-    }
-void copy_buffer(unsigned char *a){
-	int i = 0;
+void clear_array(unsigned char *array){							//Limpia el arreglo recibido
+	unsigned char i=0;
 	do{
-		a[i]=buffer[i];
-	}while(buffer[++i] != 0);
+		array[i] = 0;
+	}while(array[++i] != 0);
 }
-unsigned char* respuesta(unsigned char a){
-	switch(a){
-	case 'R':
-		s = 4;
-		return mens_console[4];
-		break;
-	case 'B':
-		s = 5;
-		return mens_console[5];
-		break;
-	case 'G':
-		s = 6;
-		return mens_console[6];
-		break;
-	case 'W':
-		s = 7;
-		return mens_console[7];
-		break;
-	case 'Y':
-		s = 8;
-		return mens_console[8];
-			break;
-	case 'O':
-		s = 9;
-		return mens_console[9];
-		break;
-	case '1':
-		s = 10;
-		return mens_console[10];
-			break;
-	case '0':
-		s = 11;
-			return mens_console[11];
-			break;
-	case 'S':
-			return mens_console[s];
-			break;
-	default:
-		return mens_console[12];
-		break;
+unsigned int count_array(unsigned char *array){					//Recibe un Arreglo de caracteres y cuenta la cantidad de datos
+	
+	unsigned int i = 0;
+	do{}while(array[++i] != 0);
+	return i;
+	
+}
+void setLamp(unsigned char estado){
+	if(estado ==  OFF) {
+		GPIOC_PDOR &= ~(1 << 2);	//Apagar relay (Encender bit 2)
+		GPIOC_PDOR |= 1 << 7;
+	}
+	if(estado ==  ON){
+		GPIOC_PDOR |= 1 << 2;
+		GPIOC_PDOR &= ~(1 << 7);
+	}
+	if(estado == TOOGLE){
+		GPIOC_PTOR |= (1 << 2); //TOOGLE
+		GPIOC_PTOR |= (1 << 7);
+	}
+	
+}
+void setESP8266(unsigned char estado){
+	if(estado ==  OFF) GPIOC_PDOR &= ~(1 << 5); 	//Apagar relay (Encender bit 2)
+	if(estado ==  ON) GPIOC_PDOR |= 1 << 5;
+	if(estado == RESET){
+		GPIOC_PDOR &= ~(1 << 5); 
+		GPIOC_PDOR |= 1 << 5;		//Resetear el ESP8266
 	}
 }
+void setLEDColor(unsigned char color){
+	switch(color){
+	case RED:
+		GPIOB_PDOR = 0x00200000;
+		GPIOE_PDOR = 0x04000000;
+		break;
+	case BLUE:
+		GPIOB_PDOR = 0x00400000;
+		GPIOE_PDOR = 0x04000000;
+		break;
+	case GREEN:
+		GPIOB_PDOR = 0x00600000;
+		GPIOE_PDOR = 0x00000000;
+		break;
+	case WHITE:
+		GPIOB_PDOR = 0x00000000;
+		GPIOE_PDOR = 0x00000000;
+		break;
+	case YELLOW:
+		GPIOB_PDOR = 0x00200000;
+		GPIOE_PDOR = 0x00000000;
+		break;
+	case OFF:
+		GPIOB_PDOR = 0x00600000;
+		GPIOE_PDOR = 0x04000000;
+		break;
+	case PINK:
+		GPIOB_PDOR = 0x00000000;
+		GPIOE_PDOR = 0x04000000;
+		break;
+	case CYAN:
+		GPIOB_PDOR = 0x00400000;
+		GPIOE_PDOR = 0x00000000;
+		break;
+	case TOOGLE:
+		GPIOB_PTOR |= 1<<21;
+		break;
+	default: //OFF
+		GPIOB_PDOR = 0x00600000;
+		GPIOE_PDOR = 0x04000000;
+		break;
+	}
+	// 31 30 29 28 || 27 26 25 24 || 23 22 21 20 || 19 18 17 16 || 15 14 13 12 || 11 10 09 08 || 07 06 05 04 || 03 02 01 00
+	//Led Red --- PTB22
+	//Led Blue -- PTB21
+	//Led Green - PTE26
+}
+void join_String(unsigned char * String1, unsigned char * String2){	//Junta dos Strings en uno sólo
+	unsigned char i = 0;
+	unsigned char j = 0;
+	do{}while(String1[++i] != 0);
+	do{String1[i++] = String2[j];}while(String2[++j] != 0);
+	String1[i] = 0;
+	}
+
+unsigned char* format(unsigned char msg_ID, unsigned char* buff ){	//Le da formato los mensajes que se quieren enviar en un sólo String
+	clear_array(buff);
+	if(msg_ID == AT_CIPSEND){
+		copy_AtoB(mensaje[AT_CIPSEND], buff);
+		join_String(buff, canal_recibido);
+		join_String(buff, mensaje[COMA]);
+		join_String(buff,integer_to_array(count_array(mensaje_enviado), bytes_recibidos));
+		join_String(buff, mensaje[ENTER]);
+	}
+	if(msg_ID == AT_CIPCLOSE){
+		copy_AtoB(mensaje[AT_CIPCLOSE], buff);
+		join_String(buff, canal_recibido);
+		join_String(buff, mensaje[ENTER]);
+	}
+	if(msg_ID == PAGINA_WEB1){
+		copy_AtoB(mensaje[PAGINA_WEB1], buff);
+		join_String(buff, integer_to_array(medicion, voltaje));
+		join_String(buff, mensaje[PAGINA_WEB2]);
+		join_String(buff, integer_to_array(medicion2, voltaje));
+		join_String(buff, mensaje[PAGINA_WEB3]);
+		join_String(buff, mensaje[lamp_status]);
+		join_String(buff, mensaje[PAGINA_WEB4]);
+	}
+	if(msg_ID == QUERY1){
+		copy_AtoB(mensaje[QUERY1], buff);
+		join_String(buff,ip);
+		join_String(buff, mensaje[QUERY2]);
+		join_String(buff, mac);
+		join_String(buff, mensaje[QUERY3]);
+		join_String(buff, mensaje[lamp_status]);
+		join_String(buff, mensaje[QUERY4]);
+		join_String(buff, integer_to_array(medicion, voltaje));
+		join_String(buff, mensaje[QUERY5]);
+	}
+	return buff;
+}
+
